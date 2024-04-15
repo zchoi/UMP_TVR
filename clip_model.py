@@ -230,8 +230,6 @@ class Transformer(nn.Module):
                 resblock: nn.Module = None
                 ):
         '''
-        partial code for CVPR2024 submitted paper "UMP: Unified Modality-aware Prompt Tuning for Text-video Retrieval"
-        function for shared prompt generation or separate prompt generation
         x: video/text feature 
             Torch.Tensor [bs*num_frame grids**2 width] for video 
             Torch.Tensor [bs, ctx, width] for text
