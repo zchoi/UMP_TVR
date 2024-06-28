@@ -12,7 +12,7 @@ This is an official PyTorch implementation of the paper **UMP: Unified Modality-
 
 ## Overview
 <p align="center">
-<img src="assets/ump_sim" width=100% height=100% 
+<img src="assets/ump_dis.png" width=100% height=100% 
 class="center">
 </p>
 
