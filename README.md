@@ -8,6 +8,7 @@ This is an official PyTorch implementation of the paper **UMP: Unified Modality-
 - devise a lightweight UPG module that generates modality-aware prompt tokens to facilitate the learning of a well-aligned unified representation.
 - introduce a parameter-free STS module that fully exploits the spatial-temporal information among video tokens and prompt tokens
 
+
 ## Overview
 
 
