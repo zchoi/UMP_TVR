@@ -14,7 +14,7 @@ This is an official PyTorch implementation of the paper **UMP: Unified Modality-
 <img src="./assets/ump_dis.png" width="75%" height="75%" class="center">
 </p>
 
-<p align="center"><b>Fig. 1.</b> Visualization comparison of modality gap between (a) VoP and (b) UMP via UMAP. Paired text-video inputs are fed into text&video encoders separately and the embeddings from the last layers are visualized in 2D using UMAP.</p>
+<p align="center"><b>Fig. 1.</b> Visualization comparison of modality gap between (a) VoP and (b) UMP via UMAP. Paired text-video inputs are fed into text and video encoders separately and the embeddings from the last layers are visualized via UMAP.</p>
 
 <b>Unified Representation Alignment</b>: existing methods adopt isolated text and video prompt tokens to prompt text and video encoders separately (<i>e.g.</i>, VoP) making it challenging for models to learn a well-aligned unified representation, <i>i.e.</i>, modality gap. 
 
