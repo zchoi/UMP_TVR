@@ -34,7 +34,13 @@ To this end, we propose a simple yet effective method, named Unified Modality-aw
 
 
 ## Usage
-
+### Requirements
+The UMP framework depends on the following main requirements:
+- torch==1.8.1+cu114
+- Transformers 4.6.1
+- OpenCV 4.5.3
+- tqdm
+  
 
 ## Bibliography
 If you find this repository helpful for your project, please consider citing our work:
