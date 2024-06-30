@@ -50,7 +50,7 @@ bash run_msrvtt.sh
 ```
 
 > [!NOTE]
-> We are continuously refactoring our code, be patient and wait for updates!
+> We are continuously refactoring our code, be patient and wait for the latest updates!
 
 ## Bibliography
 If you find this repository helpful for your project, please consider citing our work:
