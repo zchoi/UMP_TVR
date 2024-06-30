@@ -91,9 +91,7 @@ class AttentionPool2d(nn.Module):
             training=self.training,
             need_weights=False
         )
-
         return x[0]
-
 
 class ModifiedResNet(nn.Module):
     """
@@ -182,6 +180,7 @@ class ResidualAttentionBlock(nn.Module):
         ]))
         self.ln_2 = LayerNorm(d_model)
         self.attn_mask = attn_mask
+        # self.prompt_encoder = nn.Linear(d_model, d_model)
 
     def attention(self, x: torch.Tensor):
         self.attn_mask = self.attn_mask.to(dtype=x.dtype, device=x.device) if self.attn_mask is not None else None
@@ -192,17 +191,190 @@ class ResidualAttentionBlock(nn.Module):
         x = x + self.mlp(self.ln_2(x))
         return x
 
-
 class Transformer(nn.Module):
-    def __init__(self, width: int, layers: int, heads: int, attn_mask: torch.Tensor = None):
+    def __init__(self, width: int, layers: int, heads: int, attn_mask: torch.Tensor = None, M_type: str = None):
         super().__init__()
         self.width = width
         self.layers = layers
         self.resblocks = nn.Sequential(*[ResidualAttentionBlock(width, heads, attn_mask) for _ in range(layers)])
+        
+        self.num_prompt = 8
+        self.num_frame = 12
+
+        self.modality_type = M_type
+        # text prompt
+        if self.modality_type == "text":
+            self.learnable_prompt = nn.ParameterList([nn.Parameter(torch.randn(1, self.num_prompt, width)) for _ in range(layers)])
+        elif self.modality_type == "video":
+            self.learnable_prompt_video = nn.ParameterList([nn.Parameter(torch.randn(1, self.num_prompt, width)) for _ in range(layers)])
+            self.learnable_prompt = nn.ParameterList([nn.Parameter(torch.randn(self.num_frame, self.num_prompt, width)) for _ in range(layers)])
+        else:
+            TypeError("modality type must be text or video")
+
+        if self.modality_type is not None:
+            # Transformer
+            # self.encoder_layer = nn.TransformerEncoderLayer(d_model=width, nhead=8) 
+            # self.prompt_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=1)
+            # self.encoder_layer = nn.LSTM(width,width, bidirectional=True)
+            # self.prompt_encoder = nn.Linear(width, width)
+            self.encoder_layer = nn.TransformerEncoderLayer(d_model=width, nhead=8)
+            self.prompt_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=1)
+
+    def _prompt(self, x: torch.Tensor,
+                generative_prompting: bool = False,
+                modality_type: str =None, 
+                layer_index: int = None, 
+                prompt_encoder_type: str = None,
+                frame_wise_for_video: bool = False,
+                generation_without_video_or_text: bool = False,
+                resblock: nn.Module = None
+                ):
+        '''
+        x: video/text feature 
+            Torch.Tensor [bs*num_frame grids**2 width] for video 
+            Torch.Tensor [bs, ctx, width] for text
+        generative_prompting: bool  是否使用生成式prompt
+        modality_type: str  video or text when 使用生成式prompt
+        layer_index: int    当前层数
+        prompt_encoder_type: 确定prompt encoder用的是Transformer/Linear/LSTM/BiLSTM
+        frame_wise_for_video: bool  仅在video时使用, 是否给每一帧都生成n个prompt
+        generation_without_video_or_text: bool 是否不使用video/text feature生成prompt
+        '''
+
+        '''
+        Masking for shallow and deep layer adaptively
+        shallow for frame modeling
+        deep for context modeling
+        '''
+        
+
+        assert resblock is not None, "resblock must be not None"
+        x = x.permute(1, 0, 2)
+
+        if modality_type == 'video':
+            expand_size = x.shape[0]//self.num_frame if frame_wise_for_video else x.shape[0]
+            if generative_prompting:  
+                if generation_without_video_or_text: # 生成器不输入video/text
+                    if prompt_encoder_type == "transformer":
+                        video_prompt = self.prompt_encoder(self.learnable_prompt[layer_index].permute(1, 0, 2) if frame_wise_for_video else self.learnable_prompt_video[layer_index].permute(1, 0, 2)).permute(1, 0, 2)
+                    elif prompt_encoder_type == "linear":
+                        video_prompt = self.prompt_encoder(self.learnable_prompt[layer_index] if frame_wise_for_video else self.learnable_prompt_video[layer_index])
+                    elif prompt_encoder_type == "LSTM" or prompt_encoder_type == "BiLSTM":
+                        pass # TODO
+                    else:
+                        TypeError("prompt encoder type must be transformer, linear, LSTM or BiLSTM")
+                    video_prompt = video_prompt.repeat(expand_size, 1, 1)
+                else:
+                    temp = torch.cat([x, self.learnable_prompt[layer_index].repeat(expand_size, 1, 1) if frame_wise_for_video else self.learnable_prompt_video[layer_index].expand(expand_size, -1, -1)], dim=1)
+                    if prompt_encoder_type == "transformer":
+                        video_prompt = self.prompt_encoder(temp.permute(1, 0, 2)).permute(1, 0, 2)[:, -self.num_prompt:, :]
+                    elif prompt_encoder_type == "linear":
+                        video_prompt = self.prompt_encoder(temp)[:, -self.num_prompt:, :]
+                    elif prompt_encoder_type == "LSTM" or prompt_encoder_type == "BiLSTM":
+                        pass # TODO
+                    else:
+                        TypeError("prompt encoder type must be transformer, linear, LSTM or BiLSTM")
+                x = torch.cat(
+                    [
+                        x,
+                        video_prompt
+
+                    ], dim=1)
+            else:
+                x = torch.cat([
+                    x,
+                    self.learnable_prompt[layer_index].repeat(expand_size, 1, 1) if frame_wise_for_video else self.learnable_prompt_video[layer_index].expand(expand_size, -1, -1)
+                ], dim=1)
+                
+        elif modality_type == 'text':
+            x = x[:, :-self.num_prompt, :]
+            if generative_prompting:
+                if generation_without_video_or_text:
+                    if prompt_encoder_type == "transformer":
+                        text_prompt = self.prompt_encoder(self.learnable_prompt[layer_index].permute(1, 0, 2)).permute(1, 0, 2)
+                    elif prompt_encoder_type == "linear":
+                        text_prompt = self.prompt_encoder(self.learnable_prompt[layer_index])
+                    else:
+                        TypeError("prompt encoder type must be transformer or linear")
+                    text_prompt = text_prompt.expand(x.shape[0], -1, -1)
+
+                else:
+                    temp = torch.cat([x, self.learnable_prompt[layer_index].expand(x.shape[0], -1, -1)], dim=1)
+                    if prompt_encoder_type == "transformer":
+                        text_prompt = self.prompt_encoder(temp.permute(1, 0, 2)).permute(1, 0, 2)[:, -self.num_prompt:, :]
+                    elif prompt_encoder_type == "linear":
+                        text_prompt = self.prompt_encoder(temp)[:, -self.num_prompt:, :]
+                    else:
+                        TypeError("prompt encoder type must be transformer or linear")
+                x = torch.cat(
+                    [
+                        x, 
+                        text_prompt,
+
+                    ], dim=1)
+            else:
+                x = torch.cat(
+                    [
+                        x, 
+                        self.learnable_prompt[layer_index].expand(x.shape[0], -1, -1)
+
+                    ], dim=1)
+        
+        x = x.permute(1, 0, 2)
+        x = resblock(x)
+        if self.modality_type == 'video':
+            x = x[:-self.num_prompt,:,:]
+
+        return x
 
     def forward(self, x: torch.Tensor):
-        return self.resblocks(x)
 
+        layer_wise = True
+        frame_wise = False
+        if layer_wise:
+            for index, resblock in enumerate(self.resblocks):
+
+                x = self._prompt(
+                    x, 
+                    generative_prompting=True, 
+                    modality_type=self.modality_type, 
+                    layer_index=index, 
+                    prompt_encoder_type="linear", 
+                    frame_wise_for_video=frame_wise, 
+                    generation_without_video_or_text=False,
+                    resblock=resblock
+                    )  
+        else:
+            for index, resblock in enumerate(self.resblocks):
+                if index == 0:
+                    x = x.permute(1, 0, 2)
+                    expand_size = x.shape[0]//self.num_frame if frame_wise else x.shape[0]
+                    # only input
+                    if self.modality_type == 'video':
+
+                        x = torch.cat([
+                            x,
+                            self.learnable_prompt[index].repeat(expand_size, 1, 1) if frame_wise else self.learnable_prompt_video[index].expand(expand_size, -1, -1)
+                        ], dim=1)
+
+                    elif self.modality_type == 'text':
+                        x = x[:, :-self.num_prompt, :]
+                        x = torch.cat(
+                            [
+                                x, 
+                                self.learnable_prompt[index].expand(x.shape[0], -1, -1)
+
+                            ], dim=1)
+                    else:
+                        TypeError ("modality type must be video or text")
+                    
+                    x = x.permute(1, 0, 2)
+                    x = resblock(x)
+                else:
+                    x = resblock(x)
+
+        return x
+        # return self.resblocks(x) # initial version
 
 class VisualTransformer(nn.Module):
     def __init__(self, input_resolution: int, patch_size: int, width: int, layers: int, heads: int, output_dim: int):
@@ -216,11 +388,11 @@ class VisualTransformer(nn.Module):
         self.positional_embedding = nn.Parameter(scale * torch.randn((input_resolution // patch_size) ** 2 + 1, width))
         self.ln_pre = LayerNorm(width)
 
-        self.transformer = Transformer(width, layers, heads)
+        self.transformer = Transformer(width, layers, heads, M_type="video")
 
         self.ln_post = LayerNorm(width)
         self.proj = nn.Parameter(scale * torch.randn(width, output_dim))
-
+    
     def forward(self, x: torch.Tensor):
         x = self.conv1(x)  # shape = [*, width, grid, grid]
         x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
@@ -239,7 +411,6 @@ class VisualTransformer(nn.Module):
             x = x @ self.proj
 
         return x
-
 
 class CLIP(nn.Module):
     def __init__(self,
@@ -284,16 +455,25 @@ class CLIP(nn.Module):
             width=transformer_width,
             layers=transformer_layers,
             heads=transformer_heads,
-            attn_mask=self.build_attention_mask()
+            attn_mask=self.build_attention_mask(),
+            M_type="text"
         )
 
         self.vocab_size = vocab_size
         self.token_embedding = nn.Embedding(vocab_size, transformer_width)
         self.positional_embedding = nn.Parameter(torch.empty(self.context_length, transformer_width))
         self.ln_final = LayerNorm(transformer_width)
-
+        
         self.text_projection = nn.Parameter(torch.empty(transformer_width, embed_dim))
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+
+        # self.shared_encoder_layer = nn.TransformerEncoderLayer(d_model=transformer_width, nhead=8) 
+        # self.shared_prompt_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=1)
+
+        # self.index = 0
+
+        # self.visual_embeddings = np.zeros(1000, 512)
+        # self.text_embeddings = np.zeros(1000, 512)
 
         self.initialize_parameters()
 
@@ -360,12 +540,16 @@ class CLIP(nn.Module):
         return x
 
     def forward(self, image, text):
-        image_features = self.encode_image(image)
-        text_features = self.encode_text(text)
+        image_features = self.encode_image(image, self.shared_encoder_layer)
+        text_features = self.encode_text(text, self.shared_encoder_layer)
 
         # normalized features
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+
+        # self.visual_embeddings[self.index, :] = image_features
+        # self.text_embeddings[self.index, :] = text_features
+        # self.index += 1
 
         # cosine similarity as logits
         logit_scale = self.logit_scale.exp()
@@ -436,7 +620,7 @@ def build_model(state_dict: dict):
             del state_dict[key]
 
     # convert_weights(model)
-    model.load_state_dict(state_dict)
+    model.load_state_dict(state_dict, strict=False)
     return model.eval()
 
 
@@ -445,6 +629,7 @@ _MODELS = {
     "RN101": "https://openaipublic.azureedge.net/clip/models/8fa8567bab74a42d41c5915025a8e4538c3bdbe8804a470a72f30b0d94fab599/RN101.pt",
     "RN50x4": "https://openaipublic.azureedge.net/clip/models/7e526bd135e493cef0776de27d5f42653e6b4c8bf9e0f653bb11773263205fdd/RN50x4.pt",
     "ViT-B/32": "https://openaipublic.azureedge.net/clip/models/40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af/ViT-B-32.pt",
+    "ViT-B/16": "https://openaipublic.azureedge.net/clip/models/5806e77cd80f8b59890b7e101eabd078d9fb84e6937f9e85e4ecb61988df416f/ViT-B-16.pt"
 }
 
 def _download(url: str, root: str = os.path.expanduser("~/.cache/clip")):
