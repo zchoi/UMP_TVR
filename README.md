@@ -40,7 +40,10 @@ The UMP framework depends on the following main requirements:
 - Transformers 4.6.1
 - OpenCV 4.5.3
 - tqdm
-  
+
+### Datasets
+We train our model on ```MSR-VTT-9k```, ```MSR-VTT-7k```, ```DiDeMo```, ```LSMDC```, and ```ActivityNet``` datasets respectively. Please refer to this [repo](https://github.com/layer6ai-labs/xpool) for data preparation.
+
 ### How to Run (take *MSR-VTT* for example)
 You need to download the corresponding data file from the [`OneDrieve Drive link`]() provided and point out the data path ```--videos_dir``` when training. Then, you will need to run [`run_msrvtt.sh`](https://github.com/zchoi/UMP_TVR/blob/main/run_msrvtt.sh) to train the model.
 
