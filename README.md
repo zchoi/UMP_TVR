@@ -51,6 +51,27 @@ For simple training on MSR-VTT-9k with default hyperparameters:
 ```
 bash run_msrvtt.sh
 ```
+or run in the terminal directly:
+```
+python train.py \
+  --exp_name={exp_name} \
+  --videos_dir={videos_dir} \
+  --batch_size=32 \
+  --noclip_lr=3e-5 \
+  --transformer_dropout=0.3 \
+  --dataset_name=MSRVTT \
+  --msrvtt_train_file=9k
+```
+### How to Evaluate (take *MSR-VTT* for example)
+```
+python test.py
+  --exp_name={exp_name} \
+  --videos_dir={videos_dir} \
+  --batch_size=32 \
+  --load_epoch=-1 \
+  --dataset_name=MSRVTT \
+  --msrvtt_train_file=9k
+```
 
 > [!NOTE]
 > We are continuously refactoring our code, be patient and wait for the latest updates!
