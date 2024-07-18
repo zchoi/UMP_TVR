@@ -87,3 +87,9 @@ If you find this repository helpful for your project, please consider citing our
   year={2024}
 }
 ```
+## Acknowledge
+This paper and codebase are motivated and derived from the following paper and their projects [^1][^2][^3]:
+
+[^1]:X-Pool: Cross-Modal Language-Video Attention for Text-Video Retrieval. [[Paper]](https://arxiv.org/abs/2203.15086) [[Code]](https://github.com/layer6ai-labs/xpool)
+[^2]:CLIP4Clip: An Empirical Study of CLIP for End to End Video Clip Retrieval. [[Paper]](https://arxiv.org/abs/2104.08860) [[Code]](https://github.com/ArrowLuo/CLIP4Clip)
+[^3]:VoP: Text-Video Co-operative Prompt Tuning for Cross-Modal Retrieval [[Paper]](https://arxiv.org/pdf/2211.12764) [[Code]](https://github.com/bighuang624/VoP)
