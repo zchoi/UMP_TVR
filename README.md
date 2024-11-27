@@ -1,7 +1,7 @@
 # <i>UMP:</i> Unified Modality-aware Prompt Tuning for Text-Video Retrieval
 [Haonan Zhang](https://zchoi.github.io/), [Pengpeng Zeng](https://ppengzeng.github.io/), [Lianli Gao](https://lianligao.github.io/), [Jingkuan Song](https://cfm.uestc.edu.cn/~songjingkuan/), [Heng Tao Shen](https://cfm.uestc.edu.cn/~shenht/)
 
-[`arXiv`]([https://arxiv.org/abs/2310.08446](https://ieeexplore.ieee.org/document/10599510)) | [`BibTeX`](#bibliography)
+[`arXiv`](https://ieeexplore.ieee.org/document/10599510) | [`BibTeX`](#bibliography)
 
 This is an official PyTorch implementation of the paper **UMP: Unified Modality-aware Prompt Tuning for Text-Video Retrieval** (under review). In this work, we
 
